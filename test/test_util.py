@@ -55,7 +55,6 @@ class TestUtil:
         # Hosts
         ("http://google.com/mail", ("http", "google.com", None)),
         ("http://google.com/mail/", ("http", "google.com", None)),
-        ("google.com/mail", ("http", "google.com", None)),
         ("http://google.com/", ("http", "google.com", None)),
         ("http://google.com", ("http", "google.com", None)),
         ("http://www.google.com", ("http", "www.google.com", None)),
@@ -69,13 +68,11 @@ class TestUtil:
         ("http://google.com?foo=http://bar:42/baz", ("http", "google.com", None)),
         ("http://google.com#foo=http://bar:42/baz", ("http", "google.com", None)),
         # IPv4
-        ("173.194.35.7", ("http", "173.194.35.7", None)),
         ("http://173.194.35.7", ("http", "173.194.35.7", None)),
         ("http://173.194.35.7/test", ("http", "173.194.35.7", None)),
         ("http://173.194.35.7:80", ("http", "173.194.35.7", 80)),
         ("http://173.194.35.7:80/test", ("http", "173.194.35.7", 80)),
         # IPv6
-        ("[2a00:1450:4001:c01::67]", ("http", "[2a00:1450:4001:c01::67]", None)),
         ("http://[2a00:1450:4001:c01::67]", ("http", "[2a00:1450:4001:c01::67]", None)),
         (
             "http://[2a00:1450:4001:c01::67]/test",
@@ -117,10 +114,8 @@ class TestUtil:
         ("http://[a::b%zone]", ("http", "[a::b%zone]", None)),
         # Hosts
         ("HTTP://GOOGLE.COM/mail/", ("http", "google.com", None)),
-        ("GOogle.COM/mail", ("http", "google.com", None)),
         ("HTTP://GoOgLe.CoM:8000/mail/", ("http", "google.com", 8000)),
         ("HTTP://user:password@EXAMPLE.COM:1234", ("http", "example.com", 1234)),
-        ("173.194.35.7", ("http", "173.194.35.7", None)),
         ("HTTP://173.194.35.7", ("http", "173.194.35.7", None)),
         (
             "HTTP://[2a00:1450:4001:c01::67]:80/test",
@@ -151,6 +146,33 @@ class TestUtil:
         assert (parsed_url.scheme or "http") == scheme
         assert parsed_url.hostname == parsed_url.host == host
         assert parsed_url.port == port
+
+    schemeless_urls_pieces_map = [
+        (("173.194.35.7"), (None, None, None, "/173.194.35.7")),
+        (("[2a00:1450:4001:c01::67]"), (None, None, None, "/%5B2a00:1450:4001:c01::67%5D")),
+        (("evil.com://good.com"), ("evil.com", "good.com", None, None)),
+        # Schemes
+        (("http:/12345"), ("http", None, None, "/12345")),
+        (("http:30/foobar"), ("http", None, None, "/30/foobar")),
+        (("http:"), ("http", None, None, None)),
+        (("http://google.com:90"), ("http", "google.com", 90, None)),
+        # No-Schemes
+        (("/http:/12345"), (None, None, None, "/http:/12345")),
+        ((""), (None, None, None, None)),
+        (("//google.com:75/path"), (None, "google.com", 75, "/path")),
+        (("google.com/mail"), (None, None, None, "/google.com/mail")),
+    ]
+
+    @pytest.mark.parametrize("url, scheme_host_port_path", schemeless_urls_pieces_map)
+    def test_schemeless_urls(
+        self, url: str, scheme_host_port_path: tuple[str, str, int | None, str]
+    ) -> None:
+        scheme, host, port, path = scheme_host_port_path
+        parsed_url = parse_url(url)
+        assert parsed_url.scheme == scheme
+        assert parsed_url.host == host
+        assert parsed_url.port == port
+        assert parsed_url.path == path
 
     def test_encode_invalid_chars_none(self) -> None:
         assert _encode_invalid_chars(None, set()) is None
@@ -192,10 +214,10 @@ class TestUtil:
             ("Https://Example.Com/#Fragment", "https://example.com/#Fragment"),
             # IPv6 addresses with zone IDs. Both RFC 6874 (%25) as well as
             # non-standard (unquoted %) variants.
-            ("[::1%zone]", "[::1%zone]"),
-            ("[::1%25zone]", "[::1%zone]"),
-            ("[::1%25]", "[::1%25]"),
-            ("[::Ff%etH0%Ff]/%ab%Af", "[::ff%etH0%FF]/%AB%AF"),
+            ("https://[::1%zone]", "https://[::1%zone]"),
+            ("https://[::1%25zone]", "https://[::1%zone]"),
+            ("https://[::1%25]", "https://[::1%25]"),
+            ("https://[::Ff%etH0%Ff]/%ab%Af", "https://[::ff%etH0%FF]/%AB%AF"),
             (
                 "http://user:pass@[AaAa::Ff%25etH0%Ff]/%ab%Af",
                 "http://user:pass@[aaaa::ff%etH0%FF]/%AB%AF",
@@ -240,7 +262,6 @@ class TestUtil:
         ("http://google.com/mail", Url("http", host="google.com", path="/mail")),
         ("http://google.com/mail/", Url("http", host="google.com", path="/mail/")),
         ("http://google.com/mail", Url("http", host="google.com", path="mail")),
-        ("google.com/mail", Url(host="google.com", path="/mail")),
         ("http://google.com/", Url("http", host="google.com", path="/")),
         ("http://google.com", Url("http", host="google.com")),
         ("http://google.com?foo", Url("http", host="google.com", path="", query="foo")),
@@ -341,7 +362,7 @@ class TestUtil:
 
     def test_parse_url_invalid_IPv6(self) -> None:
         with pytest.raises(LocationParseError):
-            parse_url("[::1")
+            parse_url("http://[::1")
 
     def test_parse_url_negative_port(self) -> None:
         with pytest.raises(LocationParseError):
@@ -403,8 +424,6 @@ class TestUtil:
         ("http://[::1]:80/path", "[::1]:80"),
         ("http://localhost", "localhost"),
         ("http://localhost:80", "localhost:80"),
-        ("google.com/foobar", "google.com"),
-        ("google.com:12345", "google.com:12345"),
         ("/", None),
     ]
 
@@ -467,8 +486,9 @@ class TestUtil:
         ),
         # Injected headers (CVE-2016-5699, CVE-2019-9740, CVE-2019-9947)
         (
-            "10.251.0.83:7777?a=1 HTTP/1.1\r\nX-injected: header",
+            "http://10.251.0.83:7777?a=1 HTTP/1.1\r\nX-injected: header",
             Url(
+                scheme="http",
                 host="10.251.0.83",
                 port=7777,
                 path="",

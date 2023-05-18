@@ -398,10 +398,6 @@ def parse_url(url: str) -> Url:
         # Empty
         return Url()
 
-    source_url = url
-    if not _SCHEME_RE.search(url):
-        url = "//" + url
-
     scheme: str | None
     authority: str | None
     auth: str | None
@@ -448,7 +444,7 @@ def parse_url(url: str) -> Url:
             fragment = _encode_invalid_chars(fragment, _FRAGMENT_CHARS)
 
     except (ValueError, AttributeError) as e:
-        raise LocationParseError(source_url) from e
+        raise LocationParseError(url) from e
 
     # For the sake of backwards compatibility we put empty
     # string values for path if there are any defined values
